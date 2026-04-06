@@ -9,8 +9,9 @@
     <NoWarn>$(NoWarn);CS1591;CS8618;CS8625;CS8603;CS0652;CS0649;CS0414;CS1572</NoWarn>
 
     <!-- NuGet Package Metadata -->
+    <!-- Version is managed by MinVer via git tags (e.g. git tag v1.0.0) -->
     <PackageId>RpLidar.NET</PackageId>
-    <Version>1.0.0</Version>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
     <Authors>asheesh1996</Authors>
     <Company>asheesh1996</Company>
     <Description>A .NET library for interfacing with Slamtec RPLidar A-series LiDAR sensors (A1M8, A2M8, A3M1) via serial port. Supports Standard, Boost, and Sensitivity (Ultra-Capsule Express Scan) modes on Windows, Linux, and macOS.</Description>
@@ -34,6 +35,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="MinVer" Version="6.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="System.IO.Ports" Version="9.0.1" />
   </ItemGroup>
 

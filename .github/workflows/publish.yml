@@ -1,0 +1,43 @@
+name: Build & Publish NuGet
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'           # also triggers on version tags: v1.0.0, v1.2.3, ...
+
+jobs:
+  build-and-publish:
+    name: Build, Pack & Publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (full history for MinVer)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # MinVer needs the full git history to resolve the version
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+
+      - name: Restore dependencies
+        run: dotnet restore RpLidar.NET/RpLidar.NET.csproj
+
+      - name: Build
+        run: dotnet build RpLidar.NET/RpLidar.NET.csproj --no-restore -c Release
+
+      - name: Pack
+        run: dotnet pack RpLidar.NET/RpLidar.NET.csproj --no-build -c Release -o ./nupkg
+
+      - name: Show package version
+        run: ls -la ./nupkg/
+
+      - name: Publish to NuGet.org
+        run: |
+          dotnet nuget push ./nupkg/*.nupkg \
+            --api-key ${{ secrets.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
