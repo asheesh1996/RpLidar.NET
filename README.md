@@ -3,16 +3,27 @@
 [![NuGet Version](https://img.shields.io/nuget/v/RpLidar.NET?logo=nuget&label=NuGet)](https://www.nuget.org/packages/RpLidar.NET)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/RpLidar.NET?logo=nuget)](https://www.nuget.org/packages/RpLidar.NET)
 [![Build & Publish](https://github.com/asheesh1996/RpLidar.NET/actions/workflows/publish.yml/badge.svg)](https://github.com/asheesh1996/RpLidar.NET/actions/workflows/publish.yml)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue?logo=github)](https://asheesh1996.github.io/RpLidar.NET)
 
 A .NET library for interfacing with **Slamtec RPLidar A-series** LiDAR sensors over a serial connection.
 Tested with real hardware (A1M8). Targets **netstandard2.0** — compatible with .NET 6, 7, 8, and .NET Framework 4.6.1+.
 
 ---
 
+## Documentation
+
+Full documentation is available at **[asheesh1996.github.io/RpLidar.NET](https://asheesh1996.github.io/RpLidar.NET)**:
+
+- [Getting Started](https://asheesh1996.github.io/RpLidar.NET/getting-started) — Installation, platform setup, usage patterns
+- [API Reference](https://asheesh1996.github.io/RpLidar.NET/api/) — Every class, method, and property documented
+- [Support](https://asheesh1996.github.io/RpLidar.NET/support) — How to report bugs and request features
+
+---
+
 ## Supported Hardware
 
 | Model   | Scan Mode          | Max Range |
-|---------|--------------------|-----------|
+|---------|--------------------|----------|
 | A1M8    | Standard / Sensitivity | 12 m  |
 | A2M8    | Standard / Boost / Sensitivity | 18 m |
 | A3M1    | Standard / Boost / Sensitivity | 25 m |
