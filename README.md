@@ -1,5 +1,9 @@
 # RpLidar.NET
 
+[![NuGet Version](https://img.shields.io/nuget/v/RpLidar.NET?logo=nuget&label=NuGet)](https://www.nuget.org/packages/RpLidar.NET)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/RpLidar.NET?logo=nuget)](https://www.nuget.org/packages/RpLidar.NET)
+[![Build & Publish](https://github.com/asheesh1996/RpLidar.NET/actions/workflows/publish.yml/badge.svg)](https://github.com/asheesh1996/RpLidar.NET/actions/workflows/publish.yml)
+
 A .NET library for interfacing with **Slamtec RPLidar A-series** LiDAR sensors over a serial connection.
 Tested with real hardware (A1M8). Targets **netstandard2.0** — compatible with .NET 6, 7, 8, and .NET Framework 4.6.1+.
 
