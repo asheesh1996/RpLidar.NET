@@ -171,22 +171,6 @@ cd RpLidar.NET
 dotnet build
 ```
 
-### Creating a NuGet package
-
-```shell
-dotnet pack RpLidar.NET/RpLidar.NET.csproj -c Release -o ./nupkg
-```
-
-The `.nupkg` file will be in `./nupkg/`.
-
-### Publishing to NuGet.org
-
-```shell
-dotnet nuget push ./nupkg/RpLidar.NET.*.nupkg \
-  --api-key YOUR_API_KEY \
-  --source https://api.nuget.org/v3/index.json
-```
-
 ---
 
 ## License
