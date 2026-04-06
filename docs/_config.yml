@@ -1,0 +1,52 @@
+title: RpLidar.NET
+description: A .NET Standard 2.0 library for SLAMTEC RPLidar sensors — robotics, IoT, and 2D SLAM applications.
+remote_theme: just-the-docs/just-the-docs
+
+url: "https://asheesh1996.github.io"
+baseurl: "/RpLidar.NET"
+
+# Search
+search_enabled: true
+search:
+  heading_level: 2
+  previews: 2
+  preview_words_before: 3
+  preview_words_after: 3
+
+# Header links (top-right)
+aux_links:
+  "GitHub":
+    - "//github.com/asheesh1996/RpLidar.NET"
+  "NuGet":
+    - "//www.nuget.org/packages/RpLidar.NET"
+aux_links_new_tab: true
+
+# Navigation
+nav_sort: order
+nav_error_report: true
+
+# Color scheme
+color_scheme: light
+
+# Callout boxes
+callouts:
+  note:
+    title: Note
+    color: purple
+  warning:
+    title: Warning
+    color: red
+  important:
+    title: Important
+    color: blue
+  tip:
+    title: Tip
+    color: green
+
+# Footer
+footer_content: "Copyright &copy; 2024 Asheesh Maheshwari. Distributed under the <a href=\"https://github.com/asheesh1996/RpLidar.NET/blob/main/LICENSE\">MIT license</a>."
+
+# Plugins
+plugins:
+  - jekyll-seo-tag
+  - jekyll-remote-theme
