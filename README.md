@@ -23,7 +23,7 @@ Full documentation is available at **[asheesh1996.github.io/RpLidar.NET](https:/
 ## Supported Hardware
 
 | Model   | Scan Mode          | Max Range |
-|---------|--------------------|-----------|
+|---------|--------------------|----------|
 | A1M8    | Standard / Sensitivity | 12 m  |
 | A2M8    | Standard / Boost / Sensitivity | 18 m |
 | A3M1    | Standard / Boost / Sensitivity | 25 m |
