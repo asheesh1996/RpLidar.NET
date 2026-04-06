@@ -1,16 +1,37 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <Platforms>AnyCPU</Platforms>
+    <LangVersion>latest</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Suppress warnings from pre-existing code patterns -->
+    <NoWarn>$(NoWarn);CS1591;CS8618;CS8625;CS8603;CS0652;CS0649;CS0414;CS1572</NoWarn>
+
+    <!-- NuGet Package Metadata -->
+    <PackageId>RpLidar.NET</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>asheesh1996</Authors>
+    <Company>asheesh1996</Company>
+    <Description>A .NET library for interfacing with Slamtec RPLidar A-series LiDAR sensors (A1M8, A2M8, A3M1) via serial port. Supports Standard, Boost, and Sensitivity (Ultra-Capsule Express Scan) modes on Windows, Linux, and macOS.</Description>
+    <PackageTags>rplidar;lidar;slamtec;sensor;robotics;serial;iot;a1m8;a2m8;a3m1</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/asheesh1996/RpLidar.NET</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/asheesh1996/RpLidar.NET</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Copyright>Copyright © 2026 asheesh1996</Copyright>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <Compile Remove="Base\**" />
     <EmbeddedResource Remove="Base\**" />
     <None Remove="Base\**" />
   </ItemGroup>
-
 
   <ItemGroup>
     <PackageReference Include="System.IO.Ports" Version="9.0.1" />

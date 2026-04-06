@@ -13,11 +13,12 @@ namespace RpLidar.NET
     /// RPLidar A2, A3
     /// </summary>
     public class RpLidarSerialDevice : ILidarService
-    {/// <summary>
-     /// Ctor
-     /// </summary>
-     /// <param name="settings"></param>
-     /// <param name="localLogger"></param>
+    {
+        /// <summary>
+        /// Initializes a new instance of <see cref="RpLidarSerialDevice"/> and configures the serial port.
+        /// Call <see cref="Start"/> or <see cref="Connect"/> to open the connection.
+        /// </summary>
+        /// <param name="settings">Device configuration settings.</param>
         public RpLidarSerialDevice(ILidarSettings settings)
         {
             _settings = settings;
@@ -100,46 +101,26 @@ namespace RpLidar.NET
         }
 
         /// <summary>
-        /// Connect to serial port
+        /// Opens the serial connection to the RPLidar device.
+        /// Does nothing if the device is already connected.
         /// </summary>
         public void Connect()
         {
-            if (this._isConnected)
+            if (_isConnected)
             {
-                Console.WriteLine("already connected");
+                Console.WriteLine("Already connected to RPLidar.");
+                return;
             }
-            else
+
+            try
             {
-                try
-                {
-                    Console.WriteLine($"Connected to RPLidar on {_serialPort.PortName}");
-                    _serialPort.Open();
-                    _isConnected = true;
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine($"Error lidar", e);
-                }
-                // Connect Serial
-                while (!_isConnected)
-                {
-                    //var ports = SerialPort.GetPortNames().ToList();
-                    //foreach (var portName in ports)
-                    {
-                        try
-                        {
-                            //CreateSerial(portName);
-                            _serialPort.Open();
-                            _isConnected = true;
-                            Console.WriteLine($"Connected to RPLidar on {_serialPort.PortName}");
-                        }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine($"Error lidar: {_serialPort.PortName}", e);
-                        }
-                    }
-                    Thread.Sleep(1000);
-                }
+                _serialPort.Open();
+                _isConnected = true;
+                Console.WriteLine($"Connected to RPLidar on {_serialPort.PortName}");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Error connecting to RPLidar on {_serialPort.PortName}: {e.Message}");
             }
         }
 
@@ -348,7 +329,7 @@ namespace RpLidar.NET
                     //Start Scan
                     var scan = new RplidarPayloadExpressScan()
                     {
-                        working_mode = _settings.Type,
+                        working_mode = (byte)_settings.ScanMode,
                         working_flags = 1,
                     };
                     Console.WriteLine($"Start:{Command.ExpressScan}");
@@ -634,7 +615,7 @@ namespace RpLidar.NET
         private List<LidarPoint> WaitAndParseData()
         {
             var bufSize = 2002;
-            if (_settings.Type != 0)
+            if (_settings.ScanMode != ScanMode.Standard)
                 bufSize = 132 * 3;
             byte[] data = null;
             var i = 0;
@@ -645,10 +626,10 @@ namespace RpLidar.NET
             }
             if (_serialPort.BytesToRead > 0)
             {
-                switch (_settings.Type)
+                switch (_settings.ScanMode)
                 {
-                    case 3:
-                    case 4:
+                    case ScanMode.Boost:
+                    case ScanMode.Sensitivity:
                         var bytesToRead = _serialPort.BytesToRead;
 
                         data = new byte[bytesToRead];
@@ -730,10 +711,10 @@ namespace RpLidar.NET
                 {
                     Connect();
                     StopScan();
-                    switch (_settings.Type)
+                    switch (_settings.ScanMode)
                     {
-                        case 4:
-                        case 3:
+                        case ScanMode.Boost:
+                        case ScanMode.Sensitivity:
                             ForceScanExpress();
                             break;
 

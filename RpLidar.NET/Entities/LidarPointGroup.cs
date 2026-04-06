@@ -201,7 +201,6 @@ namespace RpLidar.NET.Entities
                             Angle = point.Angle,
                             Distance = point.Distance
                         });
-                        Console.WriteLine($"Backward found near point: {point.ToString()}, {pointNext}");
                         found = true;
                         break;
                     }
@@ -219,15 +218,10 @@ namespace RpLidar.NET.Entities
                         if (pointNext != null && Math.Abs(pointNext.Distance - point.Distance) < 300)
                         {
                             result.Add(new LidarPoint() { Angle = point.Angle, Distance = point.Distance });
-                            Console.WriteLine($"Backward found near point: {point.ToString()}, {pointNext}");
                             found = true;
                             break;
                         }
                     }
-                }
-                if (!found)
-                {
-                    Console.WriteLine($"Filtered point: {point.ToString()}");
                 }
             }
 
