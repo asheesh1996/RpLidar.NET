@@ -1,4 +1,4 @@
-name: Build, Sign & Publish NuGet
+name: Build & Publish NuGet
 
 on:
   push:
@@ -8,19 +8,13 @@ on:
       - 'v*'   # v1.0.0, v1.2.3, etc.
 
 jobs:
-  # ─────────────────────────────────────────────────────────────────────────
-  # JOB 1: Build & Pack
-  # Runs on every push to main and on every v* tag.
-  # Produces an unsigned .nupkg and uploads it as a workflow artifact.
-  # ─────────────────────────────────────────────────────────────────────────
-  build:
-    name: Build & Pack
+  build-and-publish:
+    name: Build, Pack & Publish
     runs-on: ubuntu-latest
+
     permissions:
-      id-token: write   # required: SignPath uses OIDC to verify build provenance
       contents: read
-    outputs:
-      unsigned-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+      packages: write   # required to publish to GitHub Packages
 
     steps:
       - name: Checkout (full history for MinVer)
@@ -42,93 +36,12 @@ jobs:
       - name: Pack
         run: dotnet pack RpLidar.NET/RpLidar.NET.csproj --no-build -c Release -o ./nupkg
 
-      - name: Show packages
+      - name: Show package version
         run: ls -la ./nupkg/
-
-      # actions/upload-artifact v4+ is required by SignPath
-      - name: Upload unsigned package
-        id: upload-unsigned
-        uses: actions/upload-artifact@v4
-        with:
-          name: unsigned-nupkg
-          path: ./nupkg/*.nupkg
-          retention-days: 3
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # JOB 2: Sign with SignPath Foundation
-  # Only runs on v* version tags to avoid signing every dev push.
-  # Submits the unsigned artifact to SignPath, waits for signing, and
-  # re-uploads the signed package as a new artifact.
-  # ─────────────────────────────────────────────────────────────────────────
-  sign:
-    name: Sign with SignPath Foundation
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write   # required: SignPath OIDC origin verification
-      actions: read     # required: SignPath reads workflow/job details via GITHUB_TOKEN
-      contents: read    # required: SignPath downloads the artifact via GITHUB_TOKEN
-
-    steps:
-      - name: Submit signing request
-        id: signing
-        uses: signpath/github-action-submit-signing-request@v2
-        with:
-          connector-url: 'https://githubactions.connectors.signpath.io'
-          api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
-          organization-id: '${{ vars.SIGNPATH_ORGANIZATION_ID }}'
-          project-slug: 'rplidar-net'
-          signing-policy-slug: 'release-signing'
-          artifact-configuration-slug: 'nuget-sign'
-          github-artifact-id: '${{ needs.build.outputs.unsigned-artifact-id }}'
-          wait-for-completion: true
-          wait-for-completion-timeout-in-seconds: '600'
-          output-artifact-directory: './signed-nupkg'
-
-      - name: Show signed packages
-        run: ls -la ./signed-nupkg/
-
-      - name: Upload signed package
-        uses: actions/upload-artifact@v4
-        with:
-          name: signed-nupkg
-          path: ./signed-nupkg/*.nupkg
-          retention-days: 7
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # JOB 3: Publish
-  # Only runs on v* version tags, after signing completes.
-  # Downloads the signed package and pushes it to NuGet.org and
-  # GitHub Packages.
-  # ─────────────────────────────────────────────────────────────────────────
-  publish:
-    name: Publish to NuGet.org & GitHub Packages
-    needs: sign
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write   # required to publish to GitHub Packages
-
-    steps:
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.x'
-
-      - name: Download signed package
-        uses: actions/download-artifact@v4
-        with:
-          name: signed-nupkg
-          path: ./signed-nupkg
-
-      - name: Show downloaded packages
-        run: ls -la ./signed-nupkg/
 
       - name: Publish to NuGet.org
         run: |
-          dotnet nuget push ./signed-nupkg/*.nupkg \
+          dotnet nuget push ./nupkg/*.nupkg \
             --api-key ${{ secrets.NUGET_API_KEY }} \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
@@ -141,6 +54,6 @@ jobs:
             --store-password-in-clear-text \
             --name github \
             "https://nuget.pkg.github.com/asheesh1996/index.json"
-          dotnet nuget push ./signed-nupkg/*.nupkg \
+          dotnet nuget push ./nupkg/*.nupkg \
             --source github \
             --skip-duplicate
