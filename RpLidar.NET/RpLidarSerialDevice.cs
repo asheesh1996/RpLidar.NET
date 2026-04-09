@@ -736,5 +736,74 @@ namespace RpLidar.NET
             _isStop = true;
             StopScan();
         }
+
+        /// <summary>
+        /// Queries the device's standard and express scan sample rates.
+        /// Returns null if the command is not supported by this device firmware.
+        /// </summary>
+        public SampleRateResponse GetSampleRate()
+        {
+            var response = SendRequest(Command.GetSampleRate);
+            return response as SampleRateResponse;
+        }
+
+        /// <summary>
+        /// Queries a device configuration value. The interpretation of the response depends on the sub-type.
+        /// </summary>
+        /// <param name="subType">The configuration property to query.</param>
+        /// <param name="argument">Optional argument (e.g. scan mode ID for per-mode queries).</param>
+        public LidarConfResponse GetLidarConf(LidarConfSubType subType, uint argument = 0)
+        {
+            if (!_isConnected)
+                return null;
+
+            _serialPort.DiscardInBuffer();
+
+            bool hasArgument = argument != 0 || RequiresArgument(subType);
+            byte[] payload = hasArgument ? new byte[8] : new byte[4];
+
+            payload[0] = (byte)((uint)subType & 0xFF);
+            payload[1] = (byte)(((uint)subType >> 8) & 0xFF);
+            payload[2] = (byte)(((uint)subType >> 16) & 0xFF);
+            payload[3] = (byte)(((uint)subType >> 24) & 0xFF);
+
+            if (hasArgument)
+            {
+                payload[4] = (byte)(argument & 0xFF);
+                payload[5] = (byte)((argument >> 8) & 0xFF);
+                payload[6] = (byte)((argument >> 16) & 0xFF);
+                payload[7] = (byte)((argument >> 24) & 0xFF);
+            }
+
+            _serialPort.SendCommand((byte)Command.GetLidarConf, payload);
+
+            try
+            {
+                var descriptor = ReadResponseDescriptor();
+
+                // Response payload: 4-byte sub-type echo followed by the actual data
+                int totalLen = descriptor.ResponseLength;
+                byte[] raw = Read(totalLen, 1000);
+
+                byte[] data = totalLen > 4 ? new byte[totalLen - 4] : Array.Empty<byte>();
+                if (data.Length > 0)
+                    Array.Copy(raw, 4, data, 0, data.Length);
+
+                return new LidarConfResponse { SubType = subType, RawPayload = data };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message, ex);
+                return null;
+            }
+        }
+
+        private static bool RequiresArgument(LidarConfSubType subType)
+        {
+            return subType == LidarConfSubType.ScanModeUsPerSample
+                || subType == LidarConfSubType.ScanModeMaxDistance
+                || subType == LidarConfSubType.ScanModeAnsType
+                || subType == LidarConfSubType.ScanModeName;
+        }
     }
 }

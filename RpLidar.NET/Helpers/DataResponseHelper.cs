@@ -280,8 +280,25 @@ namespace RpLidar.NET.Helpers
 
                 case RpDataType.GetInfo:
                     return ToInfoDataResponse(dataResponseBytes);
+
+                case RpDataType.GetSampleRate:
+                    return ToSampleRateResponse(dataResponseBytes);
+
+                case RpDataType.GetLidarConf:
+                    return new LidarConfResponse { RawPayload = dataResponseBytes ?? Array.Empty<byte>() };
             }
             return null;
+        }
+
+        /// <summary>Parses a GetSampleRate response (4 bytes: std_us LE-u16 + express_us LE-u16).</summary>
+        public static SampleRateResponse ToSampleRateResponse(byte[] data)
+        {
+            if (data == null || data.Length < 4) return new SampleRateResponse();
+            return new SampleRateResponse
+            {
+                StandardSampleDurationUs = (ushort)(data[0] | (data[1] << 8)),
+                ExpressSampleDurationUs  = (ushort)(data[2] | (data[3] << 8))
+            };
         }
 
         /// <summary>

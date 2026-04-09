@@ -20,5 +20,11 @@ namespace RpLidar.NET
         void Start();
 
         void Stop();
+
+        /// <summary>Queries the device's standard and express scan sample rates.</summary>
+        SampleRateResponse GetSampleRate();
+
+        /// <summary>Queries a device configuration value.</summary>
+        LidarConfResponse GetLidarConf(LidarConfSubType subType, uint argument = 0);
     }
 }

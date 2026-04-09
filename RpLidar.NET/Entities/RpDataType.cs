@@ -7,6 +7,8 @@
     {
         Scan = 0x81,
         GetInfo = 0x04,
-        GetHealth = 0x06
+        GetHealth = 0x06,
+        GetSampleRate = 0x15,
+        GetLidarConf = 0x20,
     }
 }
