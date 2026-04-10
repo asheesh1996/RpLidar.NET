@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # MinVer needs full history
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build (Release)
+        run: dotnet build --no-restore -c Release
+
+      - name: Run unit tests
+        run: |
+          if [ -d "RpLidar.NET.Tests" ]; then
+            dotnet test RpLidar.NET.Tests/RpLidar.NET.Tests.csproj \
+              --no-build -c Release \
+              --logger "trx;LogFileName=test-results.trx" \
+              --results-directory TestResults \
+              --logger "console;verbosity=normal"
+          else
+            echo "No test project found — skipping tests"
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/
+          retention-days: 7
+        continue-on-error: true
