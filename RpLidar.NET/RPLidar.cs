@@ -68,6 +68,15 @@ namespace RpLidar.NET
         /// </summary>
         public void Stop() => _service.Stop();
 
+        /// <summary>Resets the sensor. Re-connect after ~2 seconds.</summary>
+        public void Reset() => _service.Reset();
+
+        /// <summary>Returns all scan modes supported by this sensor.</summary>
+        public List<LidarScanMode> GetAllSupportedScanModes() => _service.GetAllSupportedScanModes();
+
+        /// <summary>Returns the sensor's recommended scan mode.</summary>
+        public LidarScanMode? GetTypicalScanMode() => _service.GetTypicalScanMode();
+
         /// <summary>
         /// Stops scanning, stops the motor, and releases all resources.
         /// </summary>
