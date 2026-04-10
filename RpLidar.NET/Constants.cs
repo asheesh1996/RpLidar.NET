@@ -10,7 +10,7 @@
         /// </summary>
         public const int DescriptorLength = 7;
         /// <summary>
-        /// The scan data response length.
+        /// Reserved for Standard scan packet size (5 bytes per packet).
         /// </summary>
         public const int ScanDataResponseLength = 5;
 
@@ -40,10 +40,6 @@
         /// The HA S PAYLOA D FLAG.
         /// </summary>
         public const byte HAS_PAYLOAD_FLAG = 0x80;
-        /// <summary>
-        /// The start flag1.
-        /// </summary>
-        public const byte StartFlag1 = 0xA5;
         /// <summary>
         /// The start flag2.
         /// </summary>
