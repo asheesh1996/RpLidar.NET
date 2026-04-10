@@ -20,6 +20,58 @@ namespace RpLidar.NET.Helpers
         public static int RpLidarRespMeasurementSyncBitExp = (0x1 << 15);
 
         /// <summary>
+        /// Parses a stream of 80-byte Classic Capsule packets (response type 0x82) from a raw byte buffer.
+        /// Sync pattern: byte[0] high-nibble == 0xA, byte[1] high-nibble == 0x5.
+        /// Checksum: XOR of bytes [2..79] must equal ((byte[0] &amp; 0x0F) | ((byte[1] &amp; 0x0F) &lt;&lt; 4)).
+        /// </summary>
+        /// <param name="data">Raw byte buffer from the serial port.</param>
+        /// <returns>Queue of parsed <see cref="RplidarResponseCapsuleMeasurementNodes"/> packets.</returns>
+        public static Queue<RplidarResponseCapsuleMeasurementNodes> WaitCapsuledNode(this byte[] data)
+        {
+            var result = new Queue<RplidarResponseCapsuleMeasurementNodes>();
+            const int PacketSize = 80;
+            int pos = 0;
+
+            while (pos + PacketSize <= data.Length)
+            {
+                // Locate sync pattern
+                if ((data[pos] >> 4) != 0xA || (data[pos + 1] >> 4) != 0x5)
+                {
+                    pos++;
+                    continue;
+                }
+
+                // Verify checksum: XOR of bytes [2..79] == low nibbles of sync bytes
+                byte expectedChecksum = (byte)((data[pos] & 0x0F) | ((data[pos + 1] & 0x0F) << 4));
+                byte actualChecksum = 0;
+                for (int i = pos + 2; i < pos + PacketSize; i++)
+                    actualChecksum ^= data[i];
+
+                if (actualChecksum != expectedChecksum)
+                {
+                    pos++;
+                    continue;
+                }
+
+                var node = new RplidarResponseCapsuleMeasurementNodes
+                {
+                    SyncByte1 = data[pos],
+                    SyncByte2 = data[pos + 1],
+                    StartAngleSyncQ6 = (ushort)(data[pos + 2] | (data[pos + 3] << 8)),
+                    CabinData = new byte[76]
+                };
+
+                // Copy the 16 × 5-byte cabin data verbatim (bytes 4..79 of the packet = 76 bytes)
+                Array.Copy(data, pos + 4, node.CabinData, 0, 76);
+
+                result.Enqueue(node);
+                pos += PacketSize;
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// Wait ultra capsuled node.
         /// </summary>
         /// <param name="data">The data.</param>

@@ -327,6 +327,11 @@ namespace RpLidar.NET
                     if (!_motorRunning)
                         this.StartMotor();
                     //Start Scan
+                    // Classic Capsule mode (Standard working_mode = 0) responds with 0x82;
+                    // Boost/Sensitivity modes respond with 0x84 (Ultra-Capsule, handled as 0x81 internally).
+                    _activeScanAnsType = _settings.ScanMode == ScanMode.Standard
+                        ? (byte)RpDataType.CapsuleScan
+                        : (byte)RpDataType.Scan;
                     var scan = new RplidarPayloadExpressScan()
                     {
                         working_mode = (byte)_settings.ScanMode,
@@ -360,6 +365,7 @@ namespace RpLidar.NET
                     if (!_motorRunning)
                         this.StartMotor();
                     //Start Scan
+                    _activeScanAnsType = (byte)RpDataType.Scan;
                     this.SendRequest(Command.Scan);
                     //Start Scan read thread
                     _scanThread = new Thread(ScanThread);
@@ -460,6 +466,11 @@ namespace RpLidar.NET
 
         private bool _isPreviousCapsuleDataRdy;
         private RplidarResponseUltraCapsuleMeasurementNodes prev = null;
+
+        private RplidarResponseCapsuleMeasurementNodes _prevCapsule;
+
+        /// <summary>Tracks which express-scan answer type is active.</summary>
+        private byte _activeScanAnsType = (byte)RpDataType.Scan;
 
         private List<LidarPoint> UltraCapsuleToNormal(RplidarResponseUltraCapsuleMeasurementNodes capsule)
         {
@@ -608,15 +619,81 @@ namespace RpLidar.NET
             return result;
         }
 
+        /// <summary>
+        /// Converts a Classic Capsule packet pair into a list of <see cref="LidarPoint"/> measurements.
+        /// Ported from the SLAMTEC C++ SDK <c>_capsuleToNormal()</c>.
+        /// </summary>
+        private List<LidarPoint> CapsuleToNormal(
+            RplidarResponseCapsuleMeasurementNodes current,
+            RplidarResponseCapsuleMeasurementNodes previous)
+        {
+            var result = new List<LidarPoint>();
+
+            float currentStartAngle = (current.StartAngleSyncQ6 & 0x7FFF) * 90.0f / 16384.0f;
+            float previousStartAngle = (previous.StartAngleSyncQ6 & 0x7FFF) * 90.0f / 16384.0f;
+
+            float diffAngle = currentStartAngle - previousStartAngle;
+            if (diffAngle < 0.0f)
+                diffAngle += 360.0f;
+
+            // 16 cabins × 2 samples = 32 samples span the inter-packet angle
+            float angleInterval = diffAngle / 32.0f;
+
+            for (int cabin = 0; cabin < 16; cabin++)
+            {
+                int offset = cabin * 5;
+
+                ushort da1 = (ushort)(previous.CabinData[offset]     | (previous.CabinData[offset + 1] << 8));
+                ushort da2 = (ushort)(previous.CabinData[offset + 2] | (previous.CabinData[offset + 3] << 8));
+                byte offsets = previous.CabinData[offset + 4];
+
+                // bits [15:3] = 13-bit distance in mm*4; bits [1:0] are unused flags
+                int dist1 = (da1 >> 2) & 0x3FFF;
+                int dist2 = (da2 >> 2) & 0x3FFF;
+
+                // 4-bit sign-extend each nibble of offsets, then scale to degrees (Q3 → °)
+                int raw1 = offsets & 0x0F;
+                int raw2 = (offsets >> 4) & 0x0F;
+                float delta1 = (raw1 >= 8 ? (raw1 - 16) : raw1) / 8.0f;
+                float delta2 = (raw2 >= 8 ? (raw2 - 16) : raw2) / 8.0f;
+
+                float angle1 = ((previousStartAngle + angleInterval * (cabin * 2)       + delta1) % 360.0f + 360.0f) % 360.0f;
+                float angle2 = ((previousStartAngle + angleInterval * (cabin * 2 + 1)   + delta2) % 360.0f + 360.0f) % 360.0f;
+
+                if (dist1 > 0)
+                    result.Add(new LidarPoint
+                    {
+                        Angle = angle1,
+                        Distance = dist1 / 4.0f,
+                        Quality = (ushort)(0x2F << DataResponseHelper.RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT)
+                    });
+
+                if (dist2 > 0)
+                    result.Add(new LidarPoint
+                    {
+                        Angle = angle2,
+                        Distance = dist2 / 4.0f,
+                        Quality = (ushort)(0x2F << DataResponseHelper.RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT)
+                    });
+            }
+
+            return result;
+        }
+
         private bool _render;
 
         private readonly List<byte[]> _prevData = new List<byte[]>(100);
 
         private List<LidarPoint> WaitAndParseData()
         {
-            var bufSize = 2002;
-            if (_settings.ScanMode != ScanMode.Standard)
+            int bufSize;
+            if (_activeScanAnsType == (byte)RpDataType.CapsuleScan)
+                bufSize = 80 * 3;
+            else if (_settings.ScanMode != ScanMode.Standard)
                 bufSize = 132 * 3;
+            else
+                bufSize = 2002;
+
             byte[] data = null;
             var i = 0;
             while (_serialPort.BytesToRead < bufSize && _isScanning && i < 5)
@@ -624,8 +701,46 @@ namespace RpLidar.NET
                 Thread.Sleep(5);
                 i++;
             }
+
             if (_serialPort.BytesToRead > 0)
             {
+                if (_activeScanAnsType == (byte)RpDataType.CapsuleScan)
+                {
+                    var bytesToRead = _serialPort.BytesToRead;
+                    data = new byte[bytesToRead];
+                    _serialPort.Read(data, 0, data.Length);
+
+                    _prevData.Add(data);
+                    var aggregates = _prevData.Count == 1 ? _prevData[0] : _prevData.SelectMany(x => x).ToArray();
+                    var capsuleQueue = aggregates.WaitCapsuledNode();
+                    var points = new List<LidarPoint>();
+
+                    while (capsuleQueue.Count > 0)
+                    {
+                        var capsule = capsuleQueue.Dequeue();
+
+                        if ((capsule.StartAngleSyncQ6 & 0x8000) != 0)
+                            _prevCapsule = null;
+
+                        if (_prevCapsule != null)
+                            points.AddRange(CapsuleToNormal(capsule, _prevCapsule));
+
+                        _prevCapsule = capsule;
+                    }
+
+                    if (points.Count == 0)
+                    {
+                        if (_prevData.Count > 100)
+                            _prevData.Clear();
+                    }
+                    else
+                    {
+                        _prevData.Clear();
+                    }
+
+                    return points;
+                }
+
                 switch (_settings.ScanMode)
                 {
                     case ScanMode.Boost:
