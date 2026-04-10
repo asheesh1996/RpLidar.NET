@@ -635,8 +635,8 @@ namespace RpLidar.NET
 
                             var flag = (syncBit[cpos] | (syncBit[cpos] == 0 ? 2 : 0));
 
-                            var quality = dist_q2[cpos] > 0 ? (0x2F << DataResponseHelper.RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT) : 0;
-                            var convert = (flag & DataResponseHelper.RpLidarRespMeasurementSyncBit) | ((quality >> DataResponseHelper.RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT) << DataResponseHelper.RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
+                            var quality = dist_q2[cpos] > 0 ? (0x2F << Constants.RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT) : 0;
+                            var convert = (flag & Constants.RpLidarRespMeasurementSyncBit) | ((quality >> Constants.RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT) << Constants.RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
 
                             var node = new LidarPoint();
                             node.Flag = flag;
@@ -979,7 +979,7 @@ namespace RpLidar.NET
                                 for (var index = 0; index < collection.Count; index++)
                                 {
                                     var lidarPoint = collection[index];
-                                    if ((lidarPoint.Flag & DataResponseHelper.RpLidarRespMeasurementSyncBit) > 0)
+                                    if ((lidarPoint.Flag & Constants.RpLidarRespMeasurementSyncBit) > 0)
                                     {
                                         _isPreviousCapsuleDataRdy = false;
                                         if (_render)

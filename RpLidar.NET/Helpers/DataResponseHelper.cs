@@ -1,4 +1,4 @@
-﻿using RpLidar.NET.Entities;
+using RpLidar.NET.Entities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,89 +6,98 @@ using System.Linq;
 namespace RpLidar.NET.Helpers
 {
     /// <summary>
-    /// The data response helper.
+    /// Helper methods for decoding raw RPLidar serial response packets into structured objects.
     /// </summary>
     public static class DataResponseHelper
     {
-        /// <summary>
-        /// The rp lidar resp measurement sync bit.
-        /// </summary>
-        public static int RpLidarRespMeasurementSyncBit = (0x1 << 0);
-        /// <summary>
-        /// The rp lidar resp measurement sync bit exp.
-        /// </summary>
-        public static int RpLidarRespMeasurementSyncBitExp = (0x1 << 15);
+        // -----------------------------------------------------------------------
+        // Ultra-Capsule varbit-scale constants — specific to the Ultra-Capsule
+        // decoder and not part of the general protocol constant set.
+        // -----------------------------------------------------------------------
 
-        /// <summary>
-        /// Parses a stream of 80-byte Classic Capsule packets (response type 0x82) from a raw byte buffer.
-        /// Sync pattern: byte[0] high-nibble == 0xA, byte[1] high-nibble == 0x5.
-        /// Checksum: XOR of bytes [2..79] must equal ((byte[0] &amp; 0x0F) | ((byte[1] &amp; 0x0F) &lt;&lt; 4)).
-        /// </summary>
-        /// <param name="data">Raw byte buffer from the serial port.</param>
-        /// <returns>Queue of parsed <see cref="RplidarResponseCapsuleMeasurementNodes"/> packets.</returns>
-        public static Queue<RplidarResponseCapsuleMeasurementNodes> WaitCapsuledNode(this byte[] data)
+        /// <summary>Source bit position for ×2 scale in the varbit-scale scheme.</summary>
+        public const int RPLIDAR_VARBITSCALE_X2_SRC_BIT = 9;
+        /// <summary>Source bit position for ×4 scale in the varbit-scale scheme.</summary>
+        public const int RPLIDAR_VARBITSCALE_X4_SRC_BIT = 11;
+        /// <summary>Source bit position for ×8 scale in the varbit-scale scheme.</summary>
+        public const int RPLIDAR_VARBITSCALE_X8_SRC_BIT = 12;
+        /// <summary>Source bit position for ×16 scale in the varbit-scale scheme.</summary>
+        public const int RPLIDAR_VARBITSCALE_X16_SRC_BIT = 14;
+        /// <summary>Destination value base for ×2 scale.</summary>
+        public const int RPLIDAR_VARBITSCALE_X2_DEST_VAL = 512;
+        /// <summary>Destination value base for ×4 scale.</summary>
+        public const int RPLIDAR_VARBITSCALE_X4_DEST_VAL = 1280;
+        /// <summary>Destination value base for ×8 scale.</summary>
+        public const int RPLIDAR_VARBITSCALE_X8_DEST_VAL = 1792;
+        /// <summary>Destination value base for ×16 scale.</summary>
+        public const int RPLIDAR_VARBITSCALE_X16_DEST_VAL = 3328;
+
+        private static readonly int[] VBS_SCALED_BASE = {
+            RPLIDAR_VARBITSCALE_X16_DEST_VAL,
+            RPLIDAR_VARBITSCALE_X8_DEST_VAL,
+            RPLIDAR_VARBITSCALE_X4_DEST_VAL,
+            RPLIDAR_VARBITSCALE_X2_DEST_VAL,
+            0,
+        };
+
+        private static readonly int[] VBS_SCALED_LVL = {
+            4,
+            3,
+            2,
+            1,
+            0,
+        };
+
+        private static readonly uint[] VBS_TARGET_BASE =
         {
-            var result = new Queue<RplidarResponseCapsuleMeasurementNodes>();
-            const int PacketSize = 80;
-            int pos = 0;
+            ((uint) 0x1 <<  RPLIDAR_VARBITSCALE_X16_SRC_BIT),
+            ((uint) 0x1 <<  RPLIDAR_VARBITSCALE_X8_SRC_BIT),
+            ((uint) 0x1 <<  RPLIDAR_VARBITSCALE_X4_SRC_BIT),
+            ((uint) 0x1 <<  RPLIDAR_VARBITSCALE_X2_SRC_BIT),
+            (uint) 0
+        };
 
-            while (pos + PacketSize <= data.Length)
+        /// <summary>
+        /// Decodes a varbit-scaled distance value into a raw distance and its scale level.
+        /// </summary>
+        /// <param name="scaled">The scaled distance value read from the packet.</param>
+        /// <param name="scaleLevel">Receives the power-of-two scale level (0–4).</param>
+        /// <returns>The decoded raw distance value.</returns>
+        public static uint _varbitscale_decode(int scaled, out int scaleLevel)
+        {
+            scaleLevel = 0;
+            for (var i = 0; i < VBS_TARGET_BASE.Length; i++)
             {
-                // Locate sync pattern
-                if ((data[pos] >> 4) != 0xA || (data[pos + 1] >> 4) != 0x5)
+                int remain = (scaled - VBS_SCALED_BASE[i]);
+                if (remain >= 0)
                 {
-                    pos++;
-                    continue;
+                    scaleLevel = VBS_SCALED_LVL[i];
+                    var sc = (remain << scaleLevel);
+                    var varbitscaleDecode = (uint)(VBS_TARGET_BASE[i] + sc);
+                    return varbitscaleDecode;
                 }
-
-                // Verify checksum: XOR of bytes [2..79] == low nibbles of sync bytes
-                byte expectedChecksum = (byte)((data[pos] & 0x0F) | ((data[pos + 1] & 0x0F) << 4));
-                byte actualChecksum = 0;
-                for (int i = pos + 2; i < pos + PacketSize; i++)
-                    actualChecksum ^= data[i];
-
-                if (actualChecksum != expectedChecksum)
-                {
-                    pos++;
-                    continue;
-                }
-
-                var node = new RplidarResponseCapsuleMeasurementNodes
-                {
-                    SyncByte1 = data[pos],
-                    SyncByte2 = data[pos + 1],
-                    StartAngleSyncQ6 = (ushort)(data[pos + 2] | (data[pos + 3] << 8)),
-                    CabinData = new byte[76]
-                };
-
-                // Copy the 16 × 5-byte cabin data verbatim (bytes 4..79 of the packet = 76 bytes)
-                Array.Copy(data, pos + 4, node.CabinData, 0, 76);
-
-                result.Enqueue(node);
-                pos += PacketSize;
             }
-
-            return result;
+            return 0;
         }
 
         /// <summary>
-        /// Wait ultra capsuled node.
+        /// Parses a raw Ultra-Capsule Express scan buffer into a queue of processed results.
         /// </summary>
-        /// <param name="data">The data.</param>
-        /// <returns><![CDATA[Queue<RplidarProcessedResult>]]></returns>
+        /// <param name="data">Raw bytes received from the serial port.</param>
+        /// <returns>A queue of <see cref="RplidarProcessedResult"/> objects decoded from the buffer.</returns>
         public static Queue<RplidarProcessedResult> WaitUltraCapsuledNode(
             this byte[] data)
         {
             var queue = new Queue<RplidarProcessedResult>();
-            if (data.Length < 132)
+            if (data.Length < Constants.UltraCapsulePacketSize)
                 return queue;
-            var size = 132;
+            var size = Constants.UltraCapsulePacketSize;
             var nodeBuffer = new byte[size];
 
             var pos = 0;
-            if (data[0] == 0xA5 && data[1] == 0x5A)
+            if (data[0] == Constants.SYNC_BYTE && data[1] == Constants.StartFlag2)
             {
-                pos = 7;
+                pos = Constants.DescriptorLength;
             }
 
             int recvPos = 0;
@@ -168,9 +177,9 @@ namespace RpLidar.NET.Helpers
                         result.ultra_cabins = cabin.ToArray();
 
                         result.start_angle_sync_q6 = (ushort)start_angle_sync_q6;
-                        // only consider vaild if the checksum matches...
+                        // only consider valid if the checksum matches...
 
-                        if ((start_angle_sync_q6 & DataResponseHelper.RpLidarRespMeasurementSyncBitExp) > 0)
+                        if ((start_angle_sync_q6 & Constants.RpLidarRespMeasurementSyncBitExp) > 0)
                         {
                             queue.Enqueue(new RplidarProcessedResult()
                             {
@@ -192,14 +201,12 @@ namespace RpLidar.NET.Helpers
                         continue;
                     }
 
-                    //_is_previous_capsuledataRdy = false;
                     queue.Enqueue(new RplidarProcessedResult()
                     {
                         IsStartAngleSyncQ6 = false,
                         Value = new RplidarResponseUltraCapsuleMeasurementNodes(),
                         IsRpLidarRespMeasurementSyncBitExp = false
                     });
-                    //return RESULT_INVALID_DATA;
                 }
             }
 
@@ -220,166 +227,15 @@ namespace RpLidar.NET.Helpers
         }
 
         /// <summary>
-        /// The RPLIDA R RES P MEASUREMEN T ANGL E SHIFT.
+        /// Dispatches a raw response byte buffer to the appropriate typed decoder based on
+        /// <paramref name="rpDataType"/>.
         /// </summary>
-        public static int RPLIDAR_RESP_MEASUREMENT_ANGLE_SHIFT = 1;
-        /// <summary>
-        /// The RPLIDA R VARBITSCAL E x2 SR C BIT.
-        /// </summary>
-        public static int RPLIDAR_VARBITSCALE_X2_SRC_BIT = 9;
-        /// <summary>
-        /// The RPLIDA R VARBITSCAL E x4 SR C BIT.
-        /// </summary>
-        public static int RPLIDAR_VARBITSCALE_X4_SRC_BIT = 11;
-        /// <summary>
-        /// The RPLIDA R VARBITSCAL E x8 SR C BIT.
-        /// </summary>
-        public static int RPLIDAR_VARBITSCALE_X8_SRC_BIT = 12;
-        /// <summary>
-        /// The RPLIDA R VARBITSCAL E x16 SR C BIT.
-        /// </summary>
-        public static int RPLIDAR_VARBITSCALE_X16_SRC_BIT = 14;
-        /// <summary>
-        /// The RPLIDA R VARBITSCAL E x2 DES T VAL.
-        /// </summary>
-        public static int RPLIDAR_VARBITSCALE_X2_DEST_VAL = 512;
-        /// <summary>
-        /// The RPLIDA R VARBITSCAL E x4 DES T VAL.
-        /// </summary>
-        public static int RPLIDAR_VARBITSCALE_X4_DEST_VAL = 1280;
-        /// <summary>
-        /// The RPLIDA R VARBITSCAL E x8 DES T VAL.
-        /// </summary>
-        public static int RPLIDAR_VARBITSCALE_X8_DEST_VAL = 1792;
-        /// <summary>
-        /// The RPLIDA R VARBITSCAL E x16 DES T VAL.
-        /// </summary>
-        public static int RPLIDAR_VARBITSCALE_X16_DEST_VAL = 3328;
-        /// <summary>
-        /// The RPLIDA R RES P MEASUREMEN T QUALIT Y SHIFT.
-        /// </summary>
-        public static int RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT = 2;
-
-        /// <summary>
-        /// The VB S SCALE D BASE.
-        /// </summary>
-        private static int[] VBS_SCALED_BASE = {
-            RPLIDAR_VARBITSCALE_X16_DEST_VAL,
-            RPLIDAR_VARBITSCALE_X8_DEST_VAL,
-            RPLIDAR_VARBITSCALE_X4_DEST_VAL,
-            RPLIDAR_VARBITSCALE_X2_DEST_VAL,
-            0,
-        };
-
-        /// <summary>
-        /// The VB S SCALE D LVL.
-        /// </summary>
-        private static int[] VBS_SCALED_LVL = {
-            4,
-            3,
-            2,
-            1,
-            0,
-        };
-
-        /// <summary>
-        /// The VB S TARGE T BASE.
-        /// </summary>
-        private static uint[] VBS_TARGET_BASE =
-        {
-            ((uint) 0x1 <<  RPLIDAR_VARBITSCALE_X16_SRC_BIT),
-            ((uint) 0x1 <<  RPLIDAR_VARBITSCALE_X8_SRC_BIT),
-            ((uint) 0x1 <<  RPLIDAR_VARBITSCALE_X4_SRC_BIT),
-            ((uint) 0x1 <<  RPLIDAR_VARBITSCALE_X2_SRC_BIT),
-            (uint) 0
-        };
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="scaled">The scaled.</param>
-        /// <param name="scaleLevel">The scale level.</param>
-        /// <returns>An uint.</returns>
-        public static uint _varbitscale_decode(int scaled, out int scaleLevel)
-        {
-            scaleLevel = 0;
-            for (var i = 0; i < VBS_TARGET_BASE.Length; i++)
-            {
-                int remain = (scaled - VBS_SCALED_BASE[i]);
-                if (remain >= 0)
-                {
-                    scaleLevel = VBS_SCALED_LVL[i];
-                    var sc = (remain << scaleLevel);
-                    var varbitscaleDecode = (uint)(VBS_TARGET_BASE[i] + sc);
-                    return varbitscaleDecode;
-                }
-            }
-            return 0;
-        }
-
-        /// <summary>Parses Dense Capsule packets (84 bytes each) from a raw buffer.</summary>
-        public static Queue<RplidarResponseDenseCapsuleMeasurementNodes> WaitDenseCapsuledNode(this byte[] data)
-        {
-            var result = new Queue<RplidarResponseDenseCapsuleMeasurementNodes>();
-            const int PacketSize = 84;
-            int pos = 0;
-            while (pos + PacketSize <= data.Length)
-            {
-                if ((data[pos] >> 4) != 0xA || (data[pos + 1] >> 4) != 0x5) { pos++; continue; }
-
-                var node = new RplidarResponseDenseCapsuleMeasurementNodes
-                {
-                    SyncByte1 = data[pos],
-                    SyncByte2 = data[pos + 1],
-                    StartAngleSyncQ6 = (ushort)(data[pos + 2] | (data[pos + 3] << 8)),
-                    Distances = new ushort[40]
-                };
-                for (int i = 0; i < 40; i++)
-                    node.Distances[i] = (ushort)(data[pos + 4 + i * 2] | (data[pos + 5 + i * 2] << 8));
-
-                result.Enqueue(node);
-                pos += PacketSize;
-            }
-            return result;
-        }
-
-        /// <summary>Parses Ultra-Dense Capsule packets from a raw buffer.</summary>
-        public static Queue<RplidarResponseUltraDenseCapsuleMeasurementNodes> WaitUltraDenseCapsuledNode(this byte[] data)
-        {
-            // Packet: 2 sync + 4 timestamp + 2 startAngle + 40*(2 dist + 1 quality) + 2 checksum = 130 bytes
-            var result = new Queue<RplidarResponseUltraDenseCapsuleMeasurementNodes>();
-            const int PacketSize = 130;
-            int pos = 0;
-            while (pos + PacketSize <= data.Length)
-            {
-                if ((data[pos] >> 4) != 0xA || (data[pos + 1] >> 4) != 0x5) { pos++; continue; }
-
-                var node = new RplidarResponseUltraDenseCapsuleMeasurementNodes
-                {
-                    SyncByte1 = data[pos],
-                    SyncByte2 = data[pos + 1],
-                    TimestampUs = (uint)(data[pos + 2] | (data[pos + 3] << 8) | (data[pos + 4] << 16) | (data[pos + 5] << 24)),
-                    StartAngleSyncQ6 = (ushort)(data[pos + 6] | (data[pos + 7] << 8)),
-                    Distances = new ushort[40],
-                    Qualities = new byte[40]
-                };
-                for (int i = 0; i < 40; i++)
-                {
-                    node.Distances[i] = (ushort)(data[pos + 8 + i * 3] | (data[pos + 9 + i * 3] << 8));
-                    node.Qualities[i] = data[pos + 10 + i * 3];
-                }
-                result.Enqueue(node);
-                pos += PacketSize;
-            }
-            return result;
-        }
-
-        /// <summary>
-        /// Converts to data response.
-        /// </summary>
-        /// <param name="rpDataType">The rp data type.</param>
-        /// <param name="dataResponseBytes">The data response bytes.</param>
-        /// <returns>An IDataResponse.</returns>
+        /// <param name="rpDataType">The type of data response expected.</param>
+        /// <param name="dataResponseBytes">The raw bytes of the response payload.</param>
+        /// <returns>
+        /// A typed <see cref="IDataResponse"/> instance, or <c>null</c> when the data type
+        /// is not handled.
+        /// </returns>
         public static IDataResponse ToDataResponse(RpDataType rpDataType, byte[] dataResponseBytes)
         {
             switch (rpDataType)
@@ -389,32 +245,15 @@ namespace RpLidar.NET.Helpers
 
                 case RpDataType.GetInfo:
                     return ToInfoDataResponse(dataResponseBytes);
-
-                case RpDataType.GetSampleRate:
-                    return ToSampleRateResponse(dataResponseBytes);
-
-                case RpDataType.GetLidarConf:
-                    return new LidarConfResponse { RawPayload = dataResponseBytes ?? Array.Empty<byte>() };
             }
             return null;
         }
 
-        /// <summary>Parses a GetSampleRate response (4 bytes: std_us LE-u16 + express_us LE-u16).</summary>
-        public static SampleRateResponse ToSampleRateResponse(byte[] data)
-        {
-            if (data == null || data.Length < 4) return new SampleRateResponse();
-            return new SampleRateResponse
-            {
-                StandardSampleDurationUs = (ushort)(data[0] | (data[1] << 8)),
-                ExpressSampleDurationUs  = (ushort)(data[2] | (data[3] << 8))
-            };
-        }
-
         /// <summary>
-        /// Converts to info data response.
+        /// Decodes a GetInfo response payload into an <see cref="InfoDataResponse"/>.
         /// </summary>
-        /// <param name="data">The data.</param>
-        /// <returns>An InfoDataResponse.</returns>
+        /// <param name="data">The raw response payload bytes (20 bytes expected).</param>
+        /// <returns>An <see cref="InfoDataResponse"/> populated with model, firmware, hardware, and serial number.</returns>
         public static InfoDataResponse ToInfoDataResponse(byte[] data)
         {
             InfoDataResponse dataResponse = new InfoDataResponse();
@@ -442,42 +281,16 @@ namespace RpLidar.NET.Helpers
         }
 
         /// <summary>
-        /// Converts to health data response.
+        /// Decodes a GetHealth response payload into an <see cref="RpHealthResponse"/>.
         /// </summary>
-        /// <param name="data">The data.</param>
-        /// <returns>A RpHealthResponse.</returns>
+        /// <param name="data">The raw response payload bytes (3 bytes expected).</param>
+        /// <returns>An <see cref="RpHealthResponse"/> with status and error code.</returns>
         public static RpHealthResponse ToHealthDataResponse(byte[] data)
         {
             RpHealthResponse response = new RpHealthResponse();
             response.Status = data[0];
             response.ErrorCode = BitConverter.ToUInt16(data, 1);
             return response;
-        }
-
-        /// <summary>
-        /// Parses a stream of 16-byte HQ scan nodes from a raw buffer.
-        /// Framing: no sync bytes — rely on Flag bit 0 (new-scan indicator) for alignment.
-        /// </summary>
-        public static List<RplidarResponseHqMeasurementNode> ParseHqNodes(this byte[] data)
-        {
-            const int NodeSize = 16;
-            var result = new List<RplidarResponseHqMeasurementNode>();
-            int pos = 0;
-            while (pos + NodeSize <= data.Length)
-            {
-                var node = new RplidarResponseHqMeasurementNode
-                {
-                    AngleZQ14 = (uint)(data[pos] | (data[pos + 1] << 8) | (data[pos + 2] << 16) | (data[pos + 3] << 24)),
-                    DistMmQ2  = (uint)(data[pos + 4] | (data[pos + 5] << 8) | (data[pos + 6] << 16) | (data[pos + 7] << 24)),
-                    Quality   = data[pos + 8],
-                    Flag      = data[pos + 9],
-                    TimestampUs = (ulong)data[pos + 10] | ((ulong)data[pos + 11] << 8) | ((ulong)data[pos + 12] << 16) |
-                                  ((ulong)data[pos + 13] << 24) | ((ulong)data[pos + 14] << 32) | ((ulong)data[pos + 15] << 40)
-                };
-                result.Add(node);
-                pos += NodeSize;
-            }
-            return result;
         }
     }
 }
