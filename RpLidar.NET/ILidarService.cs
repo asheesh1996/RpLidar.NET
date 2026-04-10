@@ -26,5 +26,14 @@ namespace RpLidar.NET
 
         /// <summary>Queries a device configuration value.</summary>
         LidarConfResponse GetLidarConf(LidarConfSubType subType, uint argument = 0);
+
+        /// <summary>Resets the device. Re-connect after ~2 seconds.</summary>
+        void Reset();
+
+        /// <summary>Returns all scan modes supported by the connected device.</summary>
+        List<LidarScanMode> GetAllSupportedScanModes();
+
+        /// <summary>Returns the device's recommended scan mode, or null if not supported.</summary>
+        LidarScanMode? GetTypicalScanMode();
     }
 }

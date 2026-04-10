@@ -1118,6 +1118,74 @@ namespace RpLidar.NET
             }
         }
 
+        /// <summary>
+        /// Sends a device reset command (0x40). The device reboots and enters idle state.
+        /// Call Connect() again after ~2 seconds to re-establish communication.
+        /// </summary>
+        public void Reset()
+        {
+            _serialPort.SendRequest(Command.Reset);
+            Thread.Sleep(2000);
+        }
+
+        /// <summary>
+        /// Queries the device for all supported scan modes via GetLidarConf.
+        /// Returns an empty list if the device firmware does not support GetLidarConf (pre-1.17 firmware).
+        /// </summary>
+        public List<LidarScanMode> GetAllSupportedScanModes()
+        {
+            var modes = new List<LidarScanMode>();
+            try
+            {
+                var countResp = GetLidarConf(LidarConfSubType.ScanModeCount);
+                if (countResp == null) return modes;
+                ushort count = countResp.ToUInt16();
+
+                for (ushort modeId = 0; modeId < count; modeId++)
+                {
+                    var nameResp    = GetLidarConf(LidarConfSubType.ScanModeName,        modeId);
+                    var usResp      = GetLidarConf(LidarConfSubType.ScanModeUsPerSample, modeId);
+                    var maxDistResp = GetLidarConf(LidarConfSubType.ScanModeMaxDistance, modeId);
+                    var ansResp     = GetLidarConf(LidarConfSubType.ScanModeAnsType,     modeId);
+
+                    modes.Add(new LidarScanMode
+                    {
+                        Id          = modeId,
+                        Name        = nameResp?.ToString() ?? $"Mode{modeId}",
+                        UsPerSample = usResp?.ToFloat() ?? 0f,
+                        MaxDistance = maxDistResp?.ToFloat() ?? 0f,
+                        AnsType     = (byte)(ansResp?.ToUInt16() ?? 0)
+                    });
+                }
+            }
+            catch (Exception)
+            {
+                // Device doesn't support GetLidarConf — return empty list
+            }
+            return modes;
+        }
+
+        /// <summary>
+        /// Queries the device's recommended (typical) scan mode.
+        /// Returns null if the device does not support GetLidarConf.
+        /// </summary>
+        public LidarScanMode? GetTypicalScanMode()
+        {
+            try
+            {
+                var typicalResp = GetLidarConf(LidarConfSubType.ScanModeTypical);
+                if (typicalResp == null) return null;
+                ushort typicalId = typicalResp.ToUInt16();
+
+                var allModes = GetAllSupportedScanModes();
+                return allModes.Find(m => m.Id == typicalId) is LidarScanMode found ? found : (LidarScanMode?)null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
         private static bool RequiresArgument(LidarConfSubType subType)
         {
             return subType == LidarConfSubType.ScanModeUsPerSample
