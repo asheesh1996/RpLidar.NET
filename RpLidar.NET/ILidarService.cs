@@ -35,5 +35,14 @@ namespace RpLidar.NET
 
         /// <summary>Returns the device's recommended scan mode, or null if not supported.</summary>
         LidarScanMode? GetTypicalScanMode();
+
+        /// <summary>Sets the motor speed in RPM. Pass 0 to stop the motor.</summary>
+        void SetMotorSpeed(ushort rpm);
+
+        /// <summary>Determines the motor control method supported by the connected device.</summary>
+        MotorCtrlSupport CheckMotorCtrlSupport();
+
+        /// <summary>Returns motor capability information (S-series only).</summary>
+        LidarMotorInfo GetMotorInfo();
     }
 }
