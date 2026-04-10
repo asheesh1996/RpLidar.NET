@@ -69,6 +69,23 @@ namespace RpLidar.NET
         public void Stop() => _service.Stop();
 
         /// <summary>
+        /// Sets the motor speed in RPM. Used by S-series devices that support RPM control.
+        /// For A-series devices, use <see cref="Stop"/> and the PWM-based motor control instead.
+        /// </summary>
+        /// <param name="rpm">Speed in RPM. Pass 0 to stop the motor.</param>
+        public void SetMotorSpeed(ushort rpm) => _service.SetMotorSpeed(rpm);
+
+        /// <summary>
+        /// Determines the motor control method supported by the connected device.
+        /// </summary>
+        public MotorCtrlSupport CheckMotorCtrlSupport() => _service.CheckMotorCtrlSupport();
+
+        /// <summary>
+        /// Returns motor capability information (S-series only).
+        /// </summary>
+        public LidarMotorInfo GetMotorInfo() => _service.GetMotorInfo();
+
+        /// <summary>
         /// Stops scanning, stops the motor, and releases all resources.
         /// </summary>
         public void Dispose()

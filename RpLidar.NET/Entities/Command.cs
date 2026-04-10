@@ -16,5 +16,7 @@
         GetSampleRate = 0x59,
         GetLidarConf = 0x84,
         StartPwm = 0xF0,
+        /// <summary>Set motor speed in RPM (S-series devices).</summary>
+        SetMotorSpeed = 0xA8,
     }
 }

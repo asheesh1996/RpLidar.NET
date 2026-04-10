@@ -266,6 +266,48 @@ namespace RpLidar.NET
         }
 
         /// <summary>
+        /// Sets the motor speed in RPM. Used by S-series devices that support RPM control.
+        /// For A-series devices, use StartMotor()/StopMotor() with PWM instead.
+        /// </summary>
+        /// <param name="rpm">Speed in RPM. Pass 0 to stop the motor.</param>
+        public void SetMotorSpeed(ushort rpm)
+        {
+            var payload = new RplidarPayloadMotorRpm { RpmValue = rpm };
+            SendCommand((byte)Command.SetMotorSpeed, payload.GetBytes());
+        }
+
+        /// <summary>
+        /// Determines the motor control method supported by the connected device.
+        /// S-series devices accept the 0xA8 SetMotorSpeed command; A-series devices use PWM via StartMotor/StopMotor.
+        /// </summary>
+        /// <remarks>
+        /// Sends <c>SetMotorSpeed(0)</c> to probe for S-series RPM support.
+        /// On S-series this momentarily halts the motor; restore speed afterwards if needed.
+        /// When WU-06 (GetLidarConf) is available this heuristic can be replaced with a proper capability query.
+        /// </remarks>
+        public MotorCtrlSupport CheckMotorCtrlSupport()
+        {
+            // SendCommand never throws — a non-null response is not available without WU-06,
+            // so we treat any successful send to a connected device as evidence of RPM support.
+            if (_isConnected)
+            {
+                SetMotorSpeed(0);
+                return MotorCtrlSupport.Rpm;
+            }
+
+            return _motorRunning ? MotorCtrlSupport.Pwm : MotorCtrlSupport.None;
+        }
+
+        /// <summary>
+        /// Returns motor capability information (S-series only).
+        /// </summary>
+        /// <exception cref="NotSupportedException">Always thrown; requires WU-06 (GetLidarConf) to implement.</exception>
+        public LidarMotorInfo GetMotorInfo()
+        {
+            throw new NotSupportedException("Requires WU-06");
+        }
+
+        /// <summary>
         /// Stop RPLidar Motor
         /// </summary>
         public void StopMotor()
