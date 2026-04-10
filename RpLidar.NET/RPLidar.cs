@@ -68,6 +68,29 @@ namespace RpLidar.NET
         /// </summary>
         public void Stop() => _service.Stop();
 
+        /// <summary>Returns the human-readable model name of the connected device, e.g. "A1M8".</summary>
+        public string GetModelNameDescriptionString() => _service.GetModelNameDescriptionString();
+
+        /// <summary>Returns the product series of the connected device.</summary>
+        public LidarMajorType GetLidarMajorType() => _service.GetLidarMajorType();
+
+        /// <summary>Returns the ranging technology of the connected device.</summary>
+        public LidarTechnologyType GetLidarTechnologyType() => _service.GetLidarTechnologyType();
+
+        /// <summary>
+        /// Sorts scan points in ascending angle order (0° → 360°).
+        /// This matches the C++ SDK's ascendScanData() behaviour.
+        /// </summary>
+        public static void AscendScanData(List<LidarPoint> points) => RpLidarSerialDevice.AscendScanData(points);
+
+        /// <summary>
+        /// Estimates the scan rotation frequency in Hz from a list of points.
+        /// Counts the number of new-revolution markers (StartFlag=true) and divides by elapsed time.
+        /// </summary>
+        /// <param name="points">Points from one or more LidarPointScanEvent firings.</param>
+        /// <param name="elapsedMs">Elapsed time in milliseconds over which the points were collected.</param>
+        public static float GetFrequency(List<LidarPoint> points, float elapsedMs) => RpLidarSerialDevice.GetFrequency(points, elapsedMs);
+
         /// <summary>
         /// Stops scanning, stops the motor, and releases all resources.
         /// </summary>

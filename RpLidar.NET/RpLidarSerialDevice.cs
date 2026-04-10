@@ -702,6 +702,39 @@ namespace RpLidar.NET
             return new List<LidarPoint>(0);
         }
 
+        private bool TryGetModelByte(out byte modelByte)
+        {
+            modelByte = 0;
+            var info = SendRequest(Command.GetInfo) as InfoDataResponse;
+            return info != null && byte.TryParse(info.ModelId, out modelByte);
+        }
+
+        /// <summary>Returns the human-readable model name of the connected device, e.g. "A1M8".</summary>
+        public string GetModelNameDescriptionString()
+            => TryGetModelByte(out byte modelByte) ? ModelDecoder.GetModelName(modelByte) : "Unknown";
+
+        /// <summary>Returns the product series of the connected device.</summary>
+        public LidarMajorType GetLidarMajorType()
+            => TryGetModelByte(out byte modelByte) ? ModelDecoder.GetMajorType(modelByte) : LidarMajorType.Unknown;
+
+        /// <summary>Returns the ranging technology of the connected device.</summary>
+        public LidarTechnologyType GetLidarTechnologyType()
+            => TryGetModelByte(out byte modelByte) ? ModelDecoder.GetTechnologyType(modelByte) : LidarTechnologyType.Unknown;
+
+        /// <summary>Sorts scan points in ascending angle order (0° → 360°).</summary>
+        public static void AscendScanData(List<LidarPoint> points)
+            => points.Sort((a, b) => a.Angle.CompareTo(b.Angle));
+
+        /// <summary>Estimates the scan rotation frequency in Hz from a list of points.</summary>
+        /// <param name="points">Points from one or more LidarPointScanEvent firings.</param>
+        /// <param name="elapsedMs">Elapsed time in milliseconds over which the points were collected.</param>
+        public static float GetFrequency(List<LidarPoint> points, float elapsedMs)
+        {
+            if (points == null || points.Count == 0 || elapsedMs <= 0) return 0f;
+            int revolutions = points.Count(p => p.StartFlag);
+            return revolutions / (elapsedMs / 1000.0f);
+        }
+
         public void Start()
         {
             _isStop = false;
