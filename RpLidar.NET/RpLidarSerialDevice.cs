@@ -461,6 +461,9 @@ namespace RpLidar.NET
         private bool _isPreviousCapsuleDataRdy;
         private RplidarResponseUltraCapsuleMeasurementNodes prev = null;
 
+        private RplidarResponseDenseCapsuleMeasurementNodes _prevDense;
+        private RplidarResponseUltraDenseCapsuleMeasurementNodes _prevUltraDense;
+
         private List<LidarPoint> UltraCapsuleToNormal(RplidarResponseUltraCapsuleMeasurementNodes capsule)
         {
             var result = new List<LidarPoint>();
@@ -608,6 +611,64 @@ namespace RpLidar.NET
             return result;
         }
 
+        /// <summary>
+        /// Computes the per-sample angle step between two consecutive capsule start angles,
+        /// accounting for wrap-around at 360°. Used by all Dense decoder variants.
+        /// </summary>
+        private static (float previousAngle, float angleStep) ComputeDenseAngleStep(
+            ushort currentStartAngleSyncQ6, ushort previousStartAngleSyncQ6)
+        {
+            float currentAngle  = (currentStartAngleSyncQ6  & 0x7FFF) * 90.0f / 16384.0f;
+            float previousAngle = (previousStartAngleSyncQ6 & 0x7FFF) * 90.0f / 16384.0f;
+            float diffAngle = currentAngle - previousAngle;
+            if (diffAngle < 0) diffAngle += 360.0f;
+            return (previousAngle, diffAngle / 40.0f);
+        }
+
+        private List<LidarPoint> DenseCapsuleToNormal(
+            RplidarResponseDenseCapsuleMeasurementNodes current,
+            RplidarResponseDenseCapsuleMeasurementNodes previous)
+        {
+            var (previousAngle, angleStep) = ComputeDenseAngleStep(
+                current.StartAngleSyncQ6, previous.StartAngleSyncQ6);
+            var points = new List<LidarPoint>(40);
+            for (int i = 0; i < 40; i++)
+            {
+                float dist = previous.Distances[i] / 4.0f; // Q2 → mm
+                if (dist <= 0 || dist > _settings.MaxDistance) continue;
+                points.Add(new LidarPoint
+                {
+                    Angle = (previousAngle + angleStep * i) % 360.0f,
+                    Distance = dist,
+                    Quality = 15,
+                    StartFlag = i == 0
+                });
+            }
+            return points;
+        }
+
+        private List<LidarPoint> UltraDenseCapsuleToNormal(
+            RplidarResponseUltraDenseCapsuleMeasurementNodes current,
+            RplidarResponseUltraDenseCapsuleMeasurementNodes previous)
+        {
+            var (previousAngle, angleStep) = ComputeDenseAngleStep(
+                current.StartAngleSyncQ6, previous.StartAngleSyncQ6);
+            var points = new List<LidarPoint>(40);
+            for (int i = 0; i < 40; i++)
+            {
+                float dist = previous.Distances[i] / 4.0f; // Q2 → mm
+                if (dist <= 0 || dist > _settings.MaxDistance) continue;
+                points.Add(new LidarPoint
+                {
+                    Angle = (previousAngle + angleStep * i) % 360.0f,
+                    Distance = dist,
+                    Quality = previous.Qualities[i],
+                    StartFlag = i == 0
+                });
+            }
+            return points;
+        }
+
         private bool _render;
 
         private readonly List<byte[]> _prevData = new List<byte[]>(100);
@@ -697,6 +758,40 @@ namespace RpLidar.NET
                         }
 
                         return points;
+
+                    case ScanMode.Dense:
+                    {
+                        var bytesToReadDense = _serialPort.BytesToRead;
+                        data = new byte[bytesToReadDense];
+                        _serialPort.Read(data, 0, data.Length);
+                        var densePackets = data.WaitDenseCapsuledNode();
+                        var densePoints = new List<LidarPoint>();
+                        while (densePackets.Count > 0)
+                        {
+                            var packet = densePackets.Dequeue();
+                            if (_prevDense != null)
+                                densePoints.AddRange(DenseCapsuleToNormal(packet, _prevDense));
+                            _prevDense = packet;
+                        }
+                        return densePoints;
+                    }
+
+                    case ScanMode.UltraDense:
+                    {
+                        var bytesToReadUd = _serialPort.BytesToRead;
+                        data = new byte[bytesToReadUd];
+                        _serialPort.Read(data, 0, data.Length);
+                        var udPackets = data.WaitUltraDenseCapsuledNode();
+                        var udPoints = new List<LidarPoint>();
+                        while (udPackets.Count > 0)
+                        {
+                            var packet = udPackets.Dequeue();
+                            if (_prevUltraDense != null)
+                                udPoints.AddRange(UltraDenseCapsuleToNormal(packet, _prevUltraDense));
+                            _prevUltraDense = packet;
+                        }
+                        return udPoints;
+                    }
                 }
             }
             return new List<LidarPoint>(0);
@@ -715,6 +810,8 @@ namespace RpLidar.NET
                     {
                         case ScanMode.Boost:
                         case ScanMode.Sensitivity:
+                        case ScanMode.Dense:
+                        case ScanMode.UltraDense:
                             ForceScanExpress();
                             break;
 

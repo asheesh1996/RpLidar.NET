@@ -29,5 +29,11 @@ namespace RpLidar.NET.Entities
         /// This is the default mode.
         /// </summary>
         Sensitivity = 4,
+
+        /// <summary>Dense Capsule Express scan (response 0x85). A3/S-series.</summary>
+        Dense = 5,
+
+        /// <summary>Ultra-Dense Capsule Express scan (response 0x86), includes timestamps.</summary>
+        UltraDense = 6,
     }
 }
