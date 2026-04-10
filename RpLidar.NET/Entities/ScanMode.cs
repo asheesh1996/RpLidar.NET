@@ -35,5 +35,8 @@ namespace RpLidar.NET.Entities
 
         /// <summary>Ultra-Dense Capsule Express scan (response 0x86), includes timestamps.</summary>
         UltraDense = 6,
+
+        /// <summary>HQ Scan mode (command 0x83, FW 1.24+). Highest quality with hardware timestamps.</summary>
+        HqScan = 7,
     }
 }

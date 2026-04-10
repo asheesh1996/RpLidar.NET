@@ -436,5 +436,31 @@ namespace RpLidar.NET.Helpers
             response.ErrorCode = BitConverter.ToUInt16(data, 1);
             return response;
         }
+
+        /// <summary>
+        /// Parses a stream of 16-byte HQ scan nodes from a raw buffer.
+        /// Framing: no sync bytes — rely on Flag bit 0 (new-scan indicator) for alignment.
+        /// </summary>
+        public static List<RplidarResponseHqMeasurementNode> ParseHqNodes(this byte[] data)
+        {
+            const int NodeSize = 16;
+            var result = new List<RplidarResponseHqMeasurementNode>();
+            int pos = 0;
+            while (pos + NodeSize <= data.Length)
+            {
+                var node = new RplidarResponseHqMeasurementNode
+                {
+                    AngleZQ14 = (uint)(data[pos] | (data[pos + 1] << 8) | (data[pos + 2] << 16) | (data[pos + 3] << 24)),
+                    DistMmQ2  = (uint)(data[pos + 4] | (data[pos + 5] << 8) | (data[pos + 6] << 16) | (data[pos + 7] << 24)),
+                    Quality   = data[pos + 8],
+                    Flag      = data[pos + 9],
+                    TimestampUs = (ulong)data[pos + 10] | ((ulong)data[pos + 11] << 8) | ((ulong)data[pos + 12] << 16) |
+                                  ((ulong)data[pos + 13] << 24) | ((ulong)data[pos + 14] << 32) | ((ulong)data[pos + 15] << 40)
+                };
+                result.Add(node);
+                pos += NodeSize;
+            }
+            return result;
+        }
     }
 }
