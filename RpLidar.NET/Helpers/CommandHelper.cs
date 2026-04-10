@@ -1,59 +1,81 @@
-﻿using RpLidar.NET.Entities;
+using RpLidar.NET.Entities;
 
 namespace RpLidar.NET.Helpers
 {
     /// <summary>
-    /// The command helper.
+    /// Extension methods and utilities for the <see cref="Command"/> enum.
     /// </summary>
     public static class CommandHelper
     {
         /// <summary>
-        /// Gets the byte.
+        /// Returns the wire byte value of the command.
         /// </summary>
         /// <param name="command">The command.</param>
-        /// <returns>A byte.</returns>
+        /// <returns>The byte representation of the command code.</returns>
         public static byte GetByte(this Command command)
         {
             return (byte)command;
         }
 
         /// <summary>
-        /// Has response.
+        /// Returns <c>true</c> when the device is expected to send one or more response packets
+        /// after the command is issued.
         /// </summary>
         /// <param name="command">The command.</param>
-        /// <returns>A bool.</returns>
+        /// <returns>
+        /// <c>true</c> if the device sends a response; <c>false</c> for fire-and-forget commands.
+        /// </returns>
         public static bool HasResponse(this Command command)
         {
-            return command != Command.Stop && command != Command.Reset;
+            switch (command)
+            {
+                case Command.Stop:
+                case Command.Reset:
+                case Command.SetMotorSpeed:
+                    return false;
+                default:
+                    return true;
+            }
         }
 
         /// <summary>
-        /// Get the has response.
+        /// Returns <c>true</c> when the device is expected to send one or more response packets
+        /// after the raw command byte is issued.
         /// </summary>
-        /// <param name="command">The command.</param>
-        /// <returns>A bool.</returns>
+        /// <param name="command">The raw command byte.</param>
+        /// <returns>
+        /// <c>true</c> if the device sends a response; <c>false</c> for fire-and-forget commands.
+        /// </returns>
         public static bool GetHasResponse(byte command)
         {
-            return command != (byte)Command.Stop && command != (byte)Command.Reset;
+            return ((Command)command).HasResponse();
         }
 
         /// <summary>
-        /// Gets the sleep interval.
+        /// Returns the number of milliseconds the driver should sleep after issuing the command
+        /// before reading or sending the next one.
         /// </summary>
         /// <param name="command">The command.</param>
-        /// <returns>An int.</returns>
+        /// <returns>Sleep duration in milliseconds (0 = no sleep required).</returns>
         public static int GetSleepInterval(this Command command)
         {
-            if (command == Command.Reset || command == Command.Stop)
-                return 20;
-            return 0;
+            switch (command)
+            {
+                case Command.Reset:
+                    return 2000; // device reboots; wait for it to be ready
+                case Command.Stop:
+                    return 20;
+                default:
+                    return 0;
+            }
         }
 
         /// <summary>
-        /// Get the must sleep.
+        /// Returns the number of milliseconds the driver should sleep after issuing the raw
+        /// command byte.
         /// </summary>
-        /// <param name="command">The command.</param>
-        /// <returns>An int.</returns>
+        /// <param name="command">The raw command byte.</param>
+        /// <returns>Sleep duration in milliseconds (0 = no sleep required).</returns>
         public static int GetMustSleep(this byte command)
         {
             return ((Command)command).GetSleepInterval();

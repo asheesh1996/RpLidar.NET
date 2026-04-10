@@ -42,5 +42,12 @@ namespace RpLidar.NET.Entities
         /// Default is 400 ms (~2.5 events per second).
         /// </summary>
         int ElapsedMilliseconds { get; set; }
+
+        /// <summary>
+        /// Desired motor speed in RPM for S-series devices.
+        /// Used by the device's SetMotorSpeed method when MotorCtrlSupport is Rpm.
+        /// Default: 600. Ignored on A-series devices which use PWM.
+        /// </summary>
+        ushort MotorRpm { get; set; }
     }
 }

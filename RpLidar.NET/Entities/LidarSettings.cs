@@ -15,7 +15,8 @@ namespace RpLidar.NET.Entities
         /// </summary>
         public LidarSettings()
         {
-            Pwm = 660;
+            Pwm = Constants.DefaultMotorPwm;
+            MotorRpm = Constants.DefaultMotorRpm;
             ScanMode = ScanMode.Sensitivity;
             MaxDistance = 25000;
             BaudRate = 115200;
@@ -40,5 +41,8 @@ namespace RpLidar.NET.Entities
 
         /// <inheritdoc/>
         public int ElapsedMilliseconds { get; set; }
+
+        /// <inheritdoc/>
+        public ushort MotorRpm { get; set; }
     }
 }
