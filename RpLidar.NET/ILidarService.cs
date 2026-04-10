@@ -44,5 +44,14 @@ namespace RpLidar.NET
 
         /// <summary>Returns motor capability information (S-series only).</summary>
         LidarMotorInfo GetMotorInfo();
+
+        /// <summary>Returns the human-readable model name of the connected device, e.g. "A1M8".</summary>
+        string GetModelNameDescriptionString();
+
+        /// <summary>Returns the product series of the connected device.</summary>
+        LidarMajorType GetLidarMajorType();
+
+        /// <summary>Returns the ranging technology of the connected device.</summary>
+        LidarTechnologyType GetLidarTechnologyType();
     }
 }

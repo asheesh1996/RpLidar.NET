@@ -85,22 +85,29 @@ namespace RpLidar.NET
         /// <summary>Returns the sensor's recommended scan mode.</summary>
         public LidarScanMode? GetTypicalScanMode() => _service.GetTypicalScanMode();
 
-        /// <summary>
-        /// Sets the motor speed in RPM. Used by S-series devices that support RPM control.
-        /// For A-series devices, use <see cref="Stop"/> and the PWM-based motor control instead.
-        /// </summary>
-        /// <param name="rpm">Speed in RPM. Pass 0 to stop the motor.</param>
+        /// <summary>Sets the motor speed in RPM. Pass 0 to stop the motor.</summary>
         public void SetMotorSpeed(ushort rpm) => _service.SetMotorSpeed(rpm);
 
-        /// <summary>
-        /// Determines the motor control method supported by the connected device.
-        /// </summary>
+        /// <summary>Determines the motor control method supported by the connected device.</summary>
         public MotorCtrlSupport CheckMotorCtrlSupport() => _service.CheckMotorCtrlSupport();
 
-        /// <summary>
-        /// Returns motor capability information (S-series only).
-        /// </summary>
+        /// <summary>Returns motor capability information (S-series only).</summary>
         public LidarMotorInfo GetMotorInfo() => _service.GetMotorInfo();
+
+        /// <summary>Returns the human-readable model name of the connected device, e.g. "A1M8".</summary>
+        public string GetModelNameDescriptionString() => _service.GetModelNameDescriptionString();
+
+        /// <summary>Returns the product series of the connected device.</summary>
+        public LidarMajorType GetLidarMajorType() => _service.GetLidarMajorType();
+
+        /// <summary>Returns the ranging technology of the connected device.</summary>
+        public LidarTechnologyType GetLidarTechnologyType() => _service.GetLidarTechnologyType();
+
+        /// <summary>Sorts scan points in ascending angle order (0° → 360°).</summary>
+        public static void AscendScanData(List<LidarPoint> points) => RpLidarSerialDevice.AscendScanData(points);
+
+        /// <summary>Estimates scan rotation frequency in Hz from a list of points.</summary>
+        public static float GetFrequency(List<LidarPoint> points, float elapsedMs) => RpLidarSerialDevice.GetFrequency(points, elapsedMs);
 
         /// <summary>
         /// Stops scanning, stops the motor, and releases all resources.
