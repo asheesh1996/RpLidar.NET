@@ -382,7 +382,7 @@ namespace RpLidar.NET
                 Thread.Sleep(10);
             }
             Thread.Sleep(20);
-            this.SendCommand((byte)0x25);
+            this.SendCommand((byte)Command.Stop);
             Thread.Sleep(20);
             StopMotor();
         }
@@ -391,7 +391,7 @@ namespace RpLidar.NET
         /// Thread used for scanning
         /// Populates a list of Measurements, and adds that list to
         /// </summary>
-        public void ScanThread()
+        private void ScanThread()
         {
             var points = new List<LidarPoint>();
             _isStoppedThread = false;
@@ -441,7 +441,7 @@ namespace RpLidar.NET
             _isStoppedThread = true;
         }
 
-        public byte[] Read(int len, int timeout)
+        private byte[] Read(int len, int timeout)
         {
             try
             {
@@ -582,11 +582,8 @@ namespace RpLidar.NET
                             node.Flag = flag;
                             node.Quality = (ushort)convert;
                             var angle = (ushort)((angle_q6[cpos] << 8) / 90);
-                            var distance = dist_q2[cpos];
                             node.Angle = angle * 90f / 16384f;
-                            node.Distance = distance > (ushort.MaxValue) ? 0 : (UInt16)(distance);
-                            //if (node.Distance < 0)
-                            //	node.Distance = -node.Distance;
+                            node.Distance = dist_q2[cpos] / 4;
                             if ((flag & 1) > 0)
                             {
                                 node.StartFlag = true;
@@ -594,7 +591,7 @@ namespace RpLidar.NET
 
                             if (node.Distance > 0 && node.Quality > 0)
                             {
-                                node.Distance = node.Distance / 4f;
+                                if (node.Distance > _settings.MaxDistance) continue;
                                 result.Add(node);
                             }
                         }
@@ -605,6 +602,40 @@ namespace RpLidar.NET
                 _isPreviousCapsuleDataRdy = true;
             }
 
+            return result;
+        }
+
+        private List<LidarPoint> ParseStandardScanPackets(byte[] buffer)
+        {
+            var result = new List<LidarPoint>();
+            for (var offset = 0; offset + Constants.ScanDataResponseLength <= buffer.Length; offset += Constants.ScanDataResponseLength)
+            {
+                var qualityAndFlags = buffer[offset];
+                var checkBit = (qualityAndFlags & 0x02) >> 1;
+                if (checkBit != 1)
+                    continue;
+
+                var quality = qualityAndFlags >> 2;
+                var startFlag = (qualityAndFlags & 0x01) == 1;
+
+                var angleRaw = (ushort)(buffer[offset + 1] | (buffer[offset + 2] << 8));
+                var angle = (angleRaw >> 1) / 64.0f;
+
+                var distRaw = (ushort)(buffer[offset + 3] | (buffer[offset + 4] << 8));
+                var distance = distRaw / 4.0f;
+
+                if (distance > _settings.MaxDistance)
+                    continue;
+
+                var point = new LidarPoint
+                {
+                    Angle = angle,
+                    Distance = distance,
+                    Quality = (ushort)quality,
+                    StartFlag = startFlag,
+                };
+                result.Add(point);
+            }
             return result;
         }
 
@@ -628,8 +659,17 @@ namespace RpLidar.NET
             {
                 switch (_settings.ScanMode)
                 {
+                    case ScanMode.Standard:
+                    {
+                        var bytesToRead = _serialPort.BytesToRead;
+                        data = new byte[bytesToRead];
+                        _serialPort.Read(data, 0, data.Length);
+                        return ParseStandardScanPackets(data);
+                    }
+
                     case ScanMode.Boost:
                     case ScanMode.Sensitivity:
+                    {
                         var bytesToRead = _serialPort.BytesToRead;
 
                         data = new byte[bytesToRead];
@@ -697,6 +737,7 @@ namespace RpLidar.NET
                         }
 
                         return points;
+                    }
                 }
             }
             return new List<LidarPoint>(0);

@@ -32,20 +32,28 @@ namespace RpLidar.NET
         public event LidarPointScanEvenHandler LidarPointScanEvent;
 
         /// <summary>
+        /// Raised periodically with a grouped scan result.
+        /// The interval is controlled by <see cref="LidarSettings.ElapsedMilliseconds"/>.
+        /// </summary>
+        public event LidarPointGroupScanEvenHandler LidarPointGroupScanEvent;
+
+        /// <summary>
         /// Initializes a new instance of <see cref="RPLidar"/>, connects to the device,
-        /// and starts scanning using <see cref="ScanMode.Sensitivity"/> (Ultra-Capsule Express Scan).
+        /// and starts scanning using the specified scan mode.
         /// </summary>
         /// <param name="serialport">
         /// Serial port name, e.g. <c>COM3</c> on Windows or <c>/dev/ttyUSB0</c> on Linux.
         /// </param>
         /// <param name="baudrate">Baud rate. Default is 115,200.</param>
-        public RPLidar(string serialport, int baudrate = 115200)
+        /// <param name="scanMode">Scan mode to use. Default is <see cref="ScanMode.Sensitivity"/>.</param>
+        public RPLidar(string serialport, int baudrate = 115200, ScanMode scanMode = ScanMode.Sensitivity)
         {
             try
             {
-                _settings = new LidarSettings() { Port = serialport, BaudRate = baudrate };
+                _settings = new LidarSettings() { Port = serialport, BaudRate = baudrate, ScanMode = scanMode };
                 _service = new RpLidarSerialDevice(_settings);
                 _service.LidarPointScanEvent += OnServiceScanEvent;
+                _service.LidarPointGroupScanEvent += group => LidarPointGroupScanEvent?.Invoke(group);
                 _service.Start();
             }
             catch (Exception e)

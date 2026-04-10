@@ -212,7 +212,7 @@ namespace RpLidar.NET.Entities
                     {
                         if (i < 0)
                             i = 360 + i;
-                        if (points.Count >= i)
+                        if (points.Count <= i)
                             continue;
                         var pointNext = points[i];
                         if (pointNext != null && Math.Abs(pointNext.Distance - point.Distance) < 300)

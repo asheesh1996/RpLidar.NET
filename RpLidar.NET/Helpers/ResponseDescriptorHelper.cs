@@ -56,7 +56,7 @@ namespace RpLidar.NET.Helpers
         /// <returns>A bool.</returns>
         public static bool IsValid(byte startFlag1, byte startFlag2)
         {
-            if (startFlag1 != Constants.StartFlag1 ||
+            if (startFlag1 != Constants.SYNC_BYTE ||
                 startFlag2 != Constants.StartFlag2)
             {
                 return false;
