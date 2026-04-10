@@ -29,5 +29,8 @@ namespace RpLidar.NET.Entities
         /// This is the default mode.
         /// </summary>
         Sensitivity = 4,
+
+        /// <summary>HQ Scan mode (command 0x83, FW 1.24+). Highest quality with hardware timestamps.</summary>
+        HqScan = 7,
     }
 }

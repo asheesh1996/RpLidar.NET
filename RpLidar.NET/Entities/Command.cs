@@ -16,5 +16,7 @@
         GetSampleRate = 0x59,
         GetLidarConf = 0x84,
         StartPwm = 0xF0,
+        /// <summary>Start HQ scan (FW 1.24+).</summary>
+        HqScan = 0x83,
     }
 }

@@ -9,6 +9,10 @@ using System.Threading;
 
 namespace RpLidar.NET
 {
+    // Local stub — replace with RpLidar.NET.Entities.HqScanFlags after WU-02 merges
+    [Flags]
+    public enum HqScanFlags : ushort { None = 0, Ccw = 1, RawEncoder = 2, RawDistance = 4 }
+
     /// <summary>
     /// RPLidar A2, A3
     /// </summary>
@@ -608,14 +612,62 @@ namespace RpLidar.NET
             return result;
         }
 
+        /// <summary>
+        /// Start HQ scan (FW 1.24+). Sends command 0x83 with RplidarPayloadHqScan payload.
+        /// </summary>
+        public void StartHqScan(HqScanFlags flags = HqScanFlags.None)
+        {
+            if (!_isScanning)
+            {
+                if (_isConnected)
+                {
+                    _isScanning = true;
+                    if (!_motorRunning)
+                        this.StartMotor();
+                    var payload = new RplidarPayloadHqScan
+                    {
+                        WorkingMode  = 0,
+                        WorkingFlags = (ushort)flags,
+                        Param        = 0
+                    };
+                    var payloadBytes = payload.GetBytes();
+                    SendCommand((byte)Command.HqScan, payloadBytes);
+                    _scanThread = new Thread(ScanThread);
+                    _scanThread.Start();
+                }
+            }
+        }
+
+        private List<LidarPoint> HqScanToNormal(List<RplidarResponseHqMeasurementNode> nodes)
+        {
+            var points = new List<LidarPoint>(nodes.Count);
+            foreach (var node in nodes)
+            {
+                float dist = node.DistanceMm;
+                if (dist <= 0 || dist > _settings.MaxDistance) continue;
+                points.Add(new LidarPoint
+                {
+                    Angle     = node.AngleDegrees,
+                    Distance  = dist,
+                    Quality   = node.Quality,
+                    StartFlag = node.IsNewScan,
+                    Flag      = node.Flag
+                });
+            }
+            return points;
+        }
+
         private bool _render;
 
         private readonly List<byte[]> _prevData = new List<byte[]>(100);
 
         private List<LidarPoint> WaitAndParseData()
         {
+            const int HqNodeSize = 16;
             var bufSize = 2002;
-            if (_settings.ScanMode != ScanMode.Standard)
+            if (_settings.ScanMode == ScanMode.HqScan)
+                bufSize = HqNodeSize * 10;
+            else if (_settings.ScanMode != ScanMode.Standard)
                 bufSize = 132 * 3;
             byte[] data = null;
             var i = 0;
@@ -628,6 +680,17 @@ namespace RpLidar.NET
             {
                 switch (_settings.ScanMode)
                 {
+                    case ScanMode.HqScan:
+                    {
+                        var hqBytesToRead = (_serialPort.BytesToRead / HqNodeSize) * HqNodeSize;
+                        if (hqBytesToRead == 0)
+                            return new List<LidarPoint>(0);
+                        data = new byte[hqBytesToRead];
+                        _serialPort.Read(data, 0, data.Length);
+                        var hqNodes = data.ParseHqNodes();
+                        return HqScanToNormal(hqNodes);
+                    }
+
                     case ScanMode.Boost:
                     case ScanMode.Sensitivity:
                         var bytesToRead = _serialPort.BytesToRead;
@@ -713,6 +776,10 @@ namespace RpLidar.NET
                     StopScan();
                     switch (_settings.ScanMode)
                     {
+                        case ScanMode.HqScan:
+                            StartHqScan();
+                            break;
+
                         case ScanMode.Boost:
                         case ScanMode.Sensitivity:
                             ForceScanExpress();
