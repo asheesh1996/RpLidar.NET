@@ -317,6 +317,63 @@ namespace RpLidar.NET.Helpers
             return 0;
         }
 
+        /// <summary>Parses Dense Capsule packets (84 bytes each) from a raw buffer.</summary>
+        public static Queue<RplidarResponseDenseCapsuleMeasurementNodes> WaitDenseCapsuledNode(this byte[] data)
+        {
+            var result = new Queue<RplidarResponseDenseCapsuleMeasurementNodes>();
+            const int PacketSize = 84;
+            int pos = 0;
+            while (pos + PacketSize <= data.Length)
+            {
+                if ((data[pos] >> 4) != 0xA || (data[pos + 1] >> 4) != 0x5) { pos++; continue; }
+
+                var node = new RplidarResponseDenseCapsuleMeasurementNodes
+                {
+                    SyncByte1 = data[pos],
+                    SyncByte2 = data[pos + 1],
+                    StartAngleSyncQ6 = (ushort)(data[pos + 2] | (data[pos + 3] << 8)),
+                    Distances = new ushort[40]
+                };
+                for (int i = 0; i < 40; i++)
+                    node.Distances[i] = (ushort)(data[pos + 4 + i * 2] | (data[pos + 5 + i * 2] << 8));
+
+                result.Enqueue(node);
+                pos += PacketSize;
+            }
+            return result;
+        }
+
+        /// <summary>Parses Ultra-Dense Capsule packets from a raw buffer.</summary>
+        public static Queue<RplidarResponseUltraDenseCapsuleMeasurementNodes> WaitUltraDenseCapsuledNode(this byte[] data)
+        {
+            // Packet: 2 sync + 4 timestamp + 2 startAngle + 40*(2 dist + 1 quality) + 2 checksum = 130 bytes
+            var result = new Queue<RplidarResponseUltraDenseCapsuleMeasurementNodes>();
+            const int PacketSize = 130;
+            int pos = 0;
+            while (pos + PacketSize <= data.Length)
+            {
+                if ((data[pos] >> 4) != 0xA || (data[pos + 1] >> 4) != 0x5) { pos++; continue; }
+
+                var node = new RplidarResponseUltraDenseCapsuleMeasurementNodes
+                {
+                    SyncByte1 = data[pos],
+                    SyncByte2 = data[pos + 1],
+                    TimestampUs = (uint)(data[pos + 2] | (data[pos + 3] << 8) | (data[pos + 4] << 16) | (data[pos + 5] << 24)),
+                    StartAngleSyncQ6 = (ushort)(data[pos + 6] | (data[pos + 7] << 8)),
+                    Distances = new ushort[40],
+                    Qualities = new byte[40]
+                };
+                for (int i = 0; i < 40; i++)
+                {
+                    node.Distances[i] = (ushort)(data[pos + 8 + i * 3] | (data[pos + 9 + i * 3] << 8));
+                    node.Qualities[i] = data[pos + 10 + i * 3];
+                }
+                result.Enqueue(node);
+                pos += PacketSize;
+            }
+            return result;
+        }
+
         /// <summary>
         /// Converts to data response.
         /// </summary>
